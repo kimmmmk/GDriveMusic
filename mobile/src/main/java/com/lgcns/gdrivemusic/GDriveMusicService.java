@@ -5,6 +5,9 @@ import android.media.session.MediaSession;
 import android.os.Bundle;
 import android.service.media.MediaBrowserService;
 
+import com.google.android.gms.common.api.GoogleApiClient;
+import com.google.android.gms.drive.Drive;
+
 import java.util.ArrayList;
 import java.util.List;
 
