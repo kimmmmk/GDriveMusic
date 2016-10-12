@@ -33,7 +33,7 @@ public class ResultsAdapter extends DataBufferAdapter<Metadata> {
         TextView titleTextView =
                 (TextView) convertView.findViewById(android.R.id.text1);
         titleTextView.setText(metadata.getTitle());
-        Log.i(TAG, metadata.getTitle() + " : " + metadata.getMimeType());
+        Log.i(TAG, metadata.getTitle() + " : " + metadata.getDriveId());
 
         return convertView;
     }

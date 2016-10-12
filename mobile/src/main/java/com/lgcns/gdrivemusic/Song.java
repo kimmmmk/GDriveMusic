@@ -1,8 +1,5 @@
 package com.lgcns.gdrivemusic;
 
-/**
- * Created by cnsmin.kim on 2016-10-06.
- */
 public class Song {
     private String uId;
     private String title;

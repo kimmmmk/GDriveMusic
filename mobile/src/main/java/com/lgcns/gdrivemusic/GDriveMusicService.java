@@ -1,6 +1,12 @@
 package com.lgcns.gdrivemusic;
 
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
+import android.content.IntentSender;
 import android.graphics.BitmapFactory;
+import android.media.AudioManager;
 import android.media.MediaDescription;
 import android.media.MediaMetadata;
 import android.media.MediaPlayer;
@@ -10,75 +16,41 @@ import android.media.session.MediaSession;
 import android.media.session.PlaybackState;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.PowerManager;
 import android.preference.PreferenceManager;
 import android.service.media.MediaBrowserService;
 import android.text.TextUtils;
+import android.util.Log;
 
+import com.google.android.gms.common.ConnectionResult;
+import com.google.android.gms.common.GoogleApiAvailability;
 import com.google.android.gms.common.api.GoogleApiClient;
+import com.google.android.gms.common.api.ResultCallback;
 import com.google.android.gms.drive.Drive;
 
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.drive.Drive;
+import com.google.android.gms.drive.DriveApi;
+import com.google.android.gms.drive.DriveContents;
+import com.google.android.gms.drive.DriveFile;
+import com.google.android.gms.drive.DriveId;
+import com.google.android.gms.drive.Metadata;
+import com.google.android.gms.drive.MetadataBuffer;
+import com.google.android.gms.drive.query.Filters;
+import com.google.android.gms.drive.query.Query;
+import com.google.android.gms.drive.query.SearchableField;
 
+import java.io.FileDescriptor;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * This class provides a MediaBrowser through a service. It exposes the media library to a browsing
- * client, through the onGetRoot and onLoadChildren methods. It also creates a MediaSession and
- * exposes it through its MediaSession.Token, which allows the client to create a MediaController
- * that connects to and send control commands to the MediaSession remotely. This is useful for
- * user interfaces that need to interact with your media session, like Android Auto. You can
- * (should) also use the same service from your app's UI, which gives a seamless playback
- * experience to the user.
- * <p>
- * To implement a MediaBrowserService, you need to:
- * <p>
- * <ul>
- * <p>
- * <li> Extend {@link android.service.media.MediaBrowserService}, implementing the media browsing
- * related methods {@link android.service.media.MediaBrowserService#onGetRoot} and
- * {@link android.service.media.MediaBrowserService#onLoadChildren};
- * <li> In onCreate, start a new {@link android.media.session.MediaSession} and notify its parent
- * with the session's token {@link android.service.media.MediaBrowserService#setSessionToken};
- * <p>
- * <li> Set a callback on the
- * {@link android.media.session.MediaSession#setCallback(android.media.session.MediaSession.Callback)}.
- * The callback will receive all the user's actions, like play, pause, etc;
- * <p>
- * <li> Handle all the actual music playing using any method your app prefers (for example,
- * {@link android.media.MediaPlayer})
- * <p>
- * <li> Update playbackState, "now playing" metadata and queue, using MediaSession proper methods
- * {@link android.media.session.MediaSession#setPlaybackState(android.media.session.PlaybackState)}
- * {@link android.media.session.MediaSession#setMetadata(android.media.MediaMetadata)} and
- * {@link android.media.session.MediaSession#setQueue(java.util.List)})
- * <p>
- * <li> Declare and export the service in AndroidManifest with an intent receiver for the action
- * android.media.browse.MediaBrowserService
- * <p>
- * </ul>
- * <p>
- * To make your app compatible with Android Auto, you also need to:
- * <p>
- * <ul>
- * <p>
- * <li> Declare a meta-data tag in AndroidManifest.xml linking to a xml resource
- * with a &lt;automotiveApp&gt; root element. For a media app, this must include
- * an &lt;uses name="media"/&gt; element as a child.
- * For example, in AndroidManifest.xml:
- * &lt;meta-data android:name="com.google.android.gms.car.application"
- * android:resource="@xml/automotive_app_desc"/&gt;
- * And in res/values/automotive_app_desc.xml:
- * &lt;automotiveApp&gt;
- * &lt;uses name="media"/&gt;
- * &lt;/automotiveApp&gt;
- * <p>
- * </ul>
- *
- * @see <a href="README.md">README.md</a> for more details.
- */
-public class GDriveMusicService extends MediaBrowserService {
+public class GDriveMusicService extends MediaBrowserService implements
+        GoogleApiClient.ConnectionCallbacks,
+        GoogleApiClient.OnConnectionFailedListener {
+
+    public static  final  String TAG = GDriveMusicService.class.getName() ;
+    private GoogleApiClient mGoogleApiClient;
 
     private static final String BROWSEABLE_ROOT = "root";
     private static final String BROWSEABLE_ROCK = "Rock";
@@ -115,6 +87,7 @@ public class GDriveMusicService extends MediaBrowserService {
         @Override
         public void onPlayFromMediaId(String mediaId, Bundle extras) {
             super.onPlayFromMediaId(mediaId, extras);
+            Log.d ( TAG, "media ID:"+mediaId) ;
 
             initMediaMetaData( mediaId );
             toggleMediaPlaybackState( true );
@@ -131,10 +104,82 @@ public class GDriveMusicService extends MediaBrowserService {
     public void onCreate() {
         super.onCreate();
 
-        //mSongs = SongGenerator.generateSongs();
+        if(mSongs == null) {
+            Log.d(TAG, "create ArrayList");
+            mSongs = new ArrayList<>();
+        }
+
+        if (mGoogleApiClient == null) {
+            Log.d(TAG, "create google api client");
+
+            mGoogleApiClient = new GoogleApiClient.Builder(this)
+                    .addApi(Drive.API)
+                    .addScope(Drive.SCOPE_FILE)
+                    .addConnectionCallbacks(this)
+                    .addOnConnectionFailedListener(this)
+                    .build();
+        }
+
+        mGoogleApiClient.connect();
 
         initMediaSession();
     }
+
+    @Override
+    public void onConnectionFailed(ConnectionResult connectionResult) {
+        Log.i(TAG, "GoogleApiClient connection failed: " + connectionResult.toString());
+//        if (!connectionResult.hasResolution()) {
+//            // show the localized error dialog.
+//            GoogleApiAvailability.getInstance().getErrorDialog(this, connectionResult.getErrorCode(), 0).show();
+//            return;
+//        }
+//        try {
+//            connectionResult.startResolutionForResult(this, REQUEST_CODE_RESOLUTION);
+//        } catch (IntentSender.SendIntentException e) {
+//            Log.e(TAG, "Exception while starting resolution activity", e);
+//        }
+    }
+
+    @Override
+    public void onConnected(Bundle connectionHint) {
+        Log.i(TAG, "API client connected.");
+
+        Query query = new Query.Builder()
+                .addFilter(Filters.eq(SearchableField.MIME_TYPE, "audio/mpeg"))
+                .build();
+        Drive.DriveApi.query(mGoogleApiClient, query)
+                .setResultCallback(metadataCallback);
+    }
+
+    @Override
+    public void onConnectionSuspended(int cause) {
+        Log.i(TAG, "GoogleApiClient connection suspended");
+    }
+
+    final private ResultCallback<DriveApi.MetadataBufferResult> metadataCallback = new
+            ResultCallback<DriveApi.MetadataBufferResult>() {
+                @Override
+                public void onResult(DriveApi.MetadataBufferResult result) {
+                    if (!result.getStatus().isSuccess()) {
+                        Log.i(TAG, "Problem while retrieving results");
+                        return;
+                    }
+                    if(mSongs != null) {
+                        Log.i(TAG, "not null");
+
+                        mSongs.clear();
+
+                        MetadataBuffer buffer = result.getMetadataBuffer();
+                        for (Metadata metadata : buffer) {
+                            mSongs.add(new Song(metadata.getDriveId().encodeToString(), metadata.getTitle(), metadata.getTitle(), "GD", "Jazz", "http://", "http://"));
+                        }
+                    }
+
+
+                }
+            };
+
+
 
     private void initMediaSession() {
         mMediaSession = new MediaSession( this, "Android Auto Audio Demo" );
@@ -208,9 +253,7 @@ public class GDriveMusicService extends MediaBrowserService {
     private List<MediaBrowser.MediaItem> getMediaItemsById( String id ) {
         List<MediaBrowser.MediaItem> mediaItems = new ArrayList<MediaBrowser.MediaItem>();
         if( BROWSEABLE_ROOT.equalsIgnoreCase( id ) ) {
-            mediaItems.add( generateBrowseableMediaItemByGenre(BROWSEABLE_CAJUN) );
             mediaItems.add( generateBrowseableMediaItemByGenre(BROWSEABLE_JAZZ) );
-            mediaItems.add( generateBrowseableMediaItemByGenre(BROWSEABLE_ROCK) );
         } else if( !TextUtils.isEmpty( id ) ) {
             return getPlayableMediaItemsByGenre( id );
         }
@@ -219,6 +262,7 @@ public class GDriveMusicService extends MediaBrowserService {
     }
 
     private List<MediaBrowser.MediaItem> getPlayableMediaItemsByGenre( String genre ) {
+
         if( TextUtils.isEmpty( genre ) )
             return null;
 
@@ -237,7 +281,7 @@ public class GDriveMusicService extends MediaBrowserService {
         MediaDescription.Builder mediaDescriptionBuilder = new MediaDescription.Builder();
         mediaDescriptionBuilder.setMediaId( genre );
         mediaDescriptionBuilder.setTitle( genre );
-        mediaDescriptionBuilder.setIconBitmap( BitmapFactory.decodeResource( getResources(), R.drawable.folder ) );
+        //mediaDescriptionBuilder.setIconBitmap( BitmapFactory.decodeResource( getResources(), R.drawable.folder ) );
 
         return new MediaBrowser.MediaItem( mediaDescriptionBuilder.build(), MediaBrowser.MediaItem.FLAG_BROWSABLE );
     }
@@ -262,17 +306,67 @@ public class GDriveMusicService extends MediaBrowserService {
     }
 
     private void playMedia( int position, String id ) {
+        Log.i(TAG, "play id:"+id);
+
         if( mMediaPlayer != null )
             mMediaPlayer.reset();
 
         //Should check id to determine what to play in a real app
-        int songId = getApplicationContext().getResources().getIdentifier("geoff_ledak_dust_array_preview", "raw", getApplicationContext().getPackageName());
-        mMediaPlayer = MediaPlayer.create(getApplicationContext(), songId);
+//        int songId = getApplicationContext().getResources().getIdentifier("geoff_ledak_dust_array_preview", "raw", getApplicationContext().getPackageName());
+//        mMediaPlayer = MediaPlayer.create(getApplicationContext(), songId);
 
-        if( position > 0 )
-            mMediaPlayer.seekTo( position );
-        mMediaPlayer.start();
+        if (mMediaPlayer == null) {
+            Log.i(TAG, "create mediaplayer");
 
+            mMediaPlayer = new MediaPlayer();
+            mMediaPlayer.setAudioStreamType(AudioManager.STREAM_MUSIC);
+            mMediaPlayer.setWakeMode(getApplicationContext(), PowerManager.PARTIAL_WAKE_LOCK);
+
+            mMediaPlayer.setOnCompletionListener(
+                    new MediaPlayer.OnCompletionListener() {
+                        @Override
+                        public void onCompletion(MediaPlayer mp) {
+                            Log.d(TAG, "onCompletion() mediaPlayer=" + mp);
+                            mp.stop();
+                        }
+                    }
+
+            );
+        }
+
+        if(id != null) {
+            DriveId fileId = DriveId.decodeFromString(id);
+            DriveFile file = fileId.asDriveFile();
+            Log.i(TAG, "ret id:" + file.getDriveId().encodeToString());
+
+
+            file.open(mGoogleApiClient, DriveFile.MODE_READ_WRITE, null).setResultCallback(new ResultCallback<DriveApi.DriveContentsResult>() {
+                @Override
+                public void onResult(DriveApi.DriveContentsResult result) {
+                    if (!result.getStatus().isSuccess()) {
+                        Log.i(TAG, "file open error");
+                        return;
+                    }
+                    DriveContents driveContents = result.getDriveContents();
+                    FileDescriptor fd = driveContents.getParcelFileDescriptor().getFileDescriptor();
+
+                    try {
+                        Log.i(TAG, "try to play");
+
+                        mMediaPlayer.setDataSource(fd);
+                        mMediaPlayer.prepare();
+                        mMediaPlayer.start();
+
+                    } catch (IOException e) {
+                        Log.e(TAG, "play() exception e=" + e);
+                    }
+
+                }
+            });
+        }
+
+//        if( position > 0 )
+//            mMediaPlayer.seekTo( position );
     }
 
     private void pauseMedia() {
