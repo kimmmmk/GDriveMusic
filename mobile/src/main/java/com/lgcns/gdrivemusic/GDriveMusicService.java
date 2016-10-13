@@ -1,17 +1,11 @@
 package com.lgcns.gdrivemusic;
 
-import android.content.BroadcastReceiver;
-import android.content.Context;
-import android.content.Intent;
-import android.content.IntentFilter;
-import android.content.IntentSender;
-import android.graphics.BitmapFactory;
+
 import android.media.AudioManager;
 import android.media.MediaDescription;
 import android.media.MediaMetadata;
 import android.media.MediaPlayer;
 import android.media.browse.MediaBrowser;
-import android.media.browse.MediaBrowser.MediaItem;
 import android.media.session.MediaSession;
 import android.media.session.PlaybackState;
 import android.net.Uri;
@@ -23,12 +17,9 @@ import android.text.TextUtils;
 import android.util.Log;
 
 import com.google.android.gms.common.ConnectionResult;
-import com.google.android.gms.common.GoogleApiAvailability;
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.common.api.ResultCallback;
-import com.google.android.gms.drive.Drive;
 
-import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.drive.Drive;
 import com.google.android.gms.drive.DriveApi;
 import com.google.android.gms.drive.DriveContents;
@@ -53,9 +44,6 @@ public class GDriveMusicService extends MediaBrowserService implements
     private GoogleApiClient mGoogleApiClient;
 
     private static final String BROWSEABLE_ROOT = "root";
-    private static final String BROWSEABLE_ROCK = "Rock";
-    private static final String BROWSEABLE_JAZZ = "Jazz";
-    private static final String BROWSEABLE_CAJUN = "Cajun";
     private static final String CURRENT_MEDIA_POSITION = "current_media_position";
 
     private MediaSession mMediaSession;
@@ -105,13 +93,10 @@ public class GDriveMusicService extends MediaBrowserService implements
         super.onCreate();
 
         if(mSongs == null) {
-            Log.d(TAG, "create ArrayList");
             mSongs = new ArrayList<>();
         }
 
         if (mGoogleApiClient == null) {
-            Log.d(TAG, "create google api client");
-
             mGoogleApiClient = new GoogleApiClient.Builder(this)
                     .addApi(Drive.API)
                     .addScope(Drive.SCOPE_FILE)
@@ -128,16 +113,6 @@ public class GDriveMusicService extends MediaBrowserService implements
     @Override
     public void onConnectionFailed(ConnectionResult connectionResult) {
         Log.i(TAG, "GoogleApiClient connection failed: " + connectionResult.toString());
-//        if (!connectionResult.hasResolution()) {
-//            // show the localized error dialog.
-//            GoogleApiAvailability.getInstance().getErrorDialog(this, connectionResult.getErrorCode(), 0).show();
-//            return;
-//        }
-//        try {
-//            connectionResult.startResolutionForResult(this, REQUEST_CODE_RESOLUTION);
-//        } catch (IntentSender.SendIntentException e) {
-//            Log.e(TAG, "Exception while starting resolution activity", e);
-//        }
     }
 
     @Override
@@ -164,9 +139,8 @@ public class GDriveMusicService extends MediaBrowserService implements
                         Log.i(TAG, "Problem while retrieving results");
                         return;
                     }
-                    if(mSongs != null) {
-                        Log.i(TAG, "not null");
 
+                    if(mSongs != null) {
                         mSongs.clear();
 
                         MetadataBuffer buffer = result.getMetadataBuffer();
@@ -235,8 +209,6 @@ public class GDriveMusicService extends MediaBrowserService implements
 
     @Override
     public BrowserRoot onGetRoot(String clientPackageName, int clientUid, Bundle rootHints) {
-        //Can do package and other validation to determine if calling app has access to media items
-        //in this service. If not, return null.
         return new BrowserRoot(BROWSEABLE_ROOT, null);
     }
 
@@ -251,13 +223,11 @@ public class GDriveMusicService extends MediaBrowserService implements
     }
 
     private List<MediaBrowser.MediaItem> getMediaItemsById( String id ) {
-        List<MediaBrowser.MediaItem> mediaItems = new ArrayList<MediaBrowser.MediaItem>();
-        if( BROWSEABLE_ROOT.equalsIgnoreCase( id ) ) {
-            mediaItems.add( generateBrowseableMediaItemByGenre(BROWSEABLE_JAZZ) );
-        } else if( !TextUtils.isEmpty( id ) ) {
-            return getPlayableMediaItemsByGenre( id );
-        }
+        List<MediaBrowser.MediaItem> mediaItems = new ArrayList();
 
+        for( Song song : mSongs ) {
+            mediaItems.add( generatePlayableMediaItem( song ) );
+        }
         return mediaItems;
     }
 
@@ -274,16 +244,6 @@ public class GDriveMusicService extends MediaBrowserService implements
             }
         }
         return mediaItems;
-    }
-
-
-    private MediaBrowser.MediaItem generateBrowseableMediaItemByGenre( String genre ) {
-        MediaDescription.Builder mediaDescriptionBuilder = new MediaDescription.Builder();
-        mediaDescriptionBuilder.setMediaId( genre );
-        mediaDescriptionBuilder.setTitle( genre );
-        //mediaDescriptionBuilder.setIconBitmap( BitmapFactory.decodeResource( getResources(), R.drawable.folder ) );
-
-        return new MediaBrowser.MediaItem( mediaDescriptionBuilder.build(), MediaBrowser.MediaItem.FLAG_BROWSABLE );
     }
 
     private MediaBrowser.MediaItem generatePlayableMediaItem( Song song ) {
@@ -306,18 +266,10 @@ public class GDriveMusicService extends MediaBrowserService implements
     }
 
     private void playMedia( int position, String id ) {
-        Log.i(TAG, "play id:"+id);
 
-        if( mMediaPlayer != null )
+        if( mMediaPlayer != null ) {
             mMediaPlayer.reset();
-
-        //Should check id to determine what to play in a real app
-//        int songId = getApplicationContext().getResources().getIdentifier("geoff_ledak_dust_array_preview", "raw", getApplicationContext().getPackageName());
-//        mMediaPlayer = MediaPlayer.create(getApplicationContext(), songId);
-
-        if (mMediaPlayer == null) {
-            Log.i(TAG, "create mediaplayer");
-
+        } else {
             mMediaPlayer = new MediaPlayer();
             mMediaPlayer.setAudioStreamType(AudioManager.STREAM_MUSIC);
             mMediaPlayer.setWakeMode(getApplicationContext(), PowerManager.PARTIAL_WAKE_LOCK);

@@ -3,10 +3,7 @@ package com.lgcns.gdrivemusic;
 import android.content.Intent;
 import android.content.IntentSender;
 import android.os.Bundle;
-import android.support.design.widget.FloatingActionButton;
-import android.support.design.widget.Snackbar;
 import android.support.v7.app.AppCompatActivity;
-import android.support.v7.widget.Toolbar;
 import android.view.View;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -35,13 +32,11 @@ public class MainActivity extends AppCompatActivity implements
         GoogleApiClient.ConnectionCallbacks,
         GoogleApiClient.OnConnectionFailedListener {
 
-    private static final int REQUEST_CODE_OPENER = 5;
     private DriveId mSelectedFileDriveId;
 
-    private static final String TAG = "gdrive-music-main";
-    private static final int REQUEST_CODE_CAPTURE_IMAGE = 1;
-    private static final int REQUEST_CODE_CREATOR = 2;
-    private static final int REQUEST_CODE_RESOLUTION = 3;
+    private static final String TAG = MainActivity.class.getName() ;
+    private static final int REQUEST_CODE_RESOLUTION = 1;
+    private static final int REQUEST_CODE_OPENER = 2;
 
     private GoogleApiClient mGoogleApiClient;
 
@@ -83,8 +78,6 @@ public class MainActivity extends AppCompatActivity implements
     }
 
     private void mp3select() {
-        // Let the user pick an mp4 or a jpeg file if there are
-        // no files selected by the user.
         IntentSender intentSender = Drive.DriveApi
                 .newOpenFileActivityBuilder()
                 .setMimeType(new String[]{ "audio/mpeg"  })
@@ -95,10 +88,7 @@ public class MainActivity extends AppCompatActivity implements
             Log.w(TAG, "Unable to send intent", e);
         }
     }
-    /**
-     * Clears the result buffer to avoid memory leaks as soon
-     * as the activity is no longer visible by the user.
-     */
+
     @Override
     protected void onStop() {
         super.onStop();
@@ -107,17 +97,11 @@ public class MainActivity extends AppCompatActivity implements
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
-        // Inflate the menu; this adds items to the action bar if it is present.
         getMenuInflater().inflate(R.menu.menu_main, menu);
         return true;
     }
 
-    /**
-     * Called when activity gets visible. A connection to Drive services need to
-     * be initiated as soon as the activity is visible. Registers
-     * {@code ConnectionCallbacks} and {@code OnConnectionFailedListener} on the
-     * activities itself.
-     */
+
     @Override
     protected void onResume() {
         super.onResume();
@@ -133,20 +117,6 @@ public class MainActivity extends AppCompatActivity implements
         mGoogleApiClient.connect();
     }
 
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        // Handle action bar item clicks here. The action bar will
-        // automatically handle clicks on the Home/Up button, so long
-        // as you specify a parent activity in AndroidManifest.xml.
-        int id = item.getItemId();
-
-        //noinspection SimplifiableIfStatement
-        if (id == R.id.action_settings) {
-            return true;
-        }
-
-        return super.onOptionsItemSelected(item);
-    }
 
     @Override
     protected void onStart() {
@@ -172,15 +142,6 @@ public class MainActivity extends AppCompatActivity implements
     @Override
     protected void onActivityResult(final int requestCode, final int resultCode, final Intent data) {
         switch (requestCode) {
-            case REQUEST_CODE_CAPTURE_IMAGE:
-                if (resultCode == RESULT_OK) {
-                    mGoogleApiClient.connect();
-                }
-                break;
-            case REQUEST_CODE_CREATOR:
-                if (resultCode == RESULT_OK) {
-                }
-                break;
             case REQUEST_CODE_RESOLUTION:
                 if(resultCode == RESULT_OK) {
                     mGoogleApiClient.connect();
@@ -194,10 +155,7 @@ public class MainActivity extends AppCompatActivity implements
         }
     }
 
-    /**
-     * Called when activity gets invisible. Connection to Drive service needs to
-     * be disconnected as soon as an activity is invisible.
-     */
+
     @Override
     protected void onPause() {
         if (mGoogleApiClient != null) {
@@ -227,8 +185,7 @@ public class MainActivity extends AppCompatActivity implements
     }
 
     private void open() {
-        // Reset progress dialog back to zero as we're
-        // initiating an opening request.
+
         mProgressBar.setProgress(0);
         DriveFile.DownloadProgressListener listener = new DriveFile.DownloadProgressListener() {
             @Override
@@ -244,9 +201,7 @@ public class MainActivity extends AppCompatActivity implements
                 .setResultCallback(driveContentsCallback);
         mSelectedFileDriveId = null;
     }
-    /**
-     * Shows a toast message.
-     */
+
     public void showMessage(String message) {
         Toast.makeText(this, message, Toast.LENGTH_LONG).show();
     }

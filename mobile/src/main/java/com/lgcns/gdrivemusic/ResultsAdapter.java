@@ -17,7 +17,7 @@ import com.google.android.gms.drive.widget.DataBufferAdapter;
  * A DataBufferAdapter to display the results of file listing/querying requests.
  */
 public class ResultsAdapter extends DataBufferAdapter<Metadata> {
-    private static final String TAG = "gdrive-result";
+    private static final String TAG = ResultsAdapter.class.getName();
 
     public ResultsAdapter(Context context) {
         super(context, android.R.layout.simple_list_item_1);
